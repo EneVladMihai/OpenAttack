@@ -154,7 +154,7 @@ def visualizer(idx, x_orig, y_orig, x_adv, y_adv, info, stream_writer, key_len=2
     try:
         cols = os.get_terminal_size().columns
     except OSError:
-        cols = 80
+        cols = 120
 
     headline = "Sample: %d " % idx
     headline = headline + ("=" * (cols - len(headline) - 1)) + "\n"
@@ -202,7 +202,7 @@ def result_visualizer(result, stream_writer):
     try:
         cols = os.get_terminal_size().columns
     except OSError:
-        cols = 80
+        cols = 120
 
     left = []
     right = []
