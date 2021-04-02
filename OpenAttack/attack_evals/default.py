@@ -43,7 +43,7 @@ class MetaClassifierWrapper(Classifier):
         return self.__clsf.get_grad(input_, labels, self.__meta)
 
     def __getattribute__(self, name):
-        if hasattr(self, name):
+        if name in ['set_meta', 'get_pred', 'get_prob', 'get_grad']:
             return super().__getattribute__(name)
         else:
             return self.__clsf.__getattribute__(name)
