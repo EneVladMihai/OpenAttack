@@ -42,6 +42,9 @@ class MetaClassifierWrapper(Classifier):
     def get_grad(self, input_, labels):
         return self.__clsf.get_grad(input_, labels, self.__meta)
 
+    def preprocess(self, input_):
+        return self.__clsf.preprocess(input_)
+
 
 class DefaultAttackEval(AttackEval):
     """
