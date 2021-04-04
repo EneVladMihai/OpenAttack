@@ -132,14 +132,14 @@ class DefaultAttackEval(AttackEval):
             if visualize:
                 try:
                     if x_adv is not None:
-                        res = self.classifier.get_prob([x_orig, x_adv], data.meta)
+                        res = self.classifier.get_prob([x_orig, x_adv])
                         y_orig = res[0]
                         y_adv = res[1]
                     else:
-                        y_orig = self.classifier.get_prob([x_orig], data.meta)[0]
+                        y_orig = self.classifier.get_prob([x_orig])[0]
                 except ClassifierNotSupportException:
                     if x_adv is not None:
-                        res = self.classifier.get_pred([x_orig, x_adv], data.meta)
+                        res = self.classifier.get_pred([x_orig, x_adv])
                         y_orig = int(res[0])
                         y_adv = int(res[1])
                     else:
@@ -187,7 +187,7 @@ class DefaultAttackEval(AttackEval):
         for data in dataset:
             assert isinstance(data, DataInstance)
             clsf_wrapper.set_meta(data.meta)
-            res = self.attacker(clsf_wrapper, data.x, data.target)
+            res = self.attacker(self.classifier, data.x, data.target)
             if res is None:
                 info = self.__update(data.x, None)
             else:
