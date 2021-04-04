@@ -215,7 +215,7 @@ class DefaultAttackEval(AttackEval):
             for data in dataset:
                 assert isinstance(data, DataInstance)
                 clsf_wrapper.set_meta(data.meta)
-                future = executor.submit(self.__timed_func(self.attacker), clsf_wrapper, data.x, data.target)
+                future = executor.submit(self.__timed_func(self.attacker), self.classifier, data.x, data.target)
                 futures_to_data[future] = data
 
             for future in concurrent.futures.as_completed(futures_to_data):
