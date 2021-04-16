@@ -2,7 +2,7 @@ from ..attack_eval import AttackEval
 from ..classifier import Classifier
 import json, sys, time, concurrent.futures, threading
 from tqdm import tqdm
-from ..utils import visualizer, result_visualizer, check_parameters, DataInstance, Dataset
+from ..utils import visualizer, result_visualizer, check_parameters, DataInstance, Dataset, strip_punctuation
 from ..exceptions import ClassifierNotSupportException
 from ..text_processors import DefaultTextProcessor
 
@@ -97,9 +97,9 @@ class DefaultAttackEval(AttackEval):
         self.classifier = classifier
         self.__lock = threading.Lock()
 
-        self.__progress_bar = progress_bar
+        self.progress_bar = progress_bar
 
-    def eval(self, dataset, total_len=None, visualize=False, max_workers=False):
+    def eval(self, dataset, total_len=None, visualize=False, return_attacks=False, max_workers=False):
         """
         :param Dataset dataset: A :py:class:`.Dataset` or a list of :py:class:`.DataInstance`.
         :type dataset: list or generator
@@ -126,7 +126,7 @@ class DefaultAttackEval(AttackEval):
 
         time_start = time.time()
         for data, x_adv, y_adv, info in (
-        tqdm(results_generator, total=total_len) if self.__progress_bar else results_generator):
+        tqdm(results_generator, total=total_len) if self.progress_bar else results_generator):
             x_orig = data.x
             counter += 1
             if visualize:
@@ -145,7 +145,11 @@ class DefaultAttackEval(AttackEval):
                     else:
                         y_orig = int(self.classifier.get_pred([x_orig], data.meta)[0])
 
-                if self.__progress_bar:
+                x_orig = strip_punctuation(x_orig)
+                if x_adv is not None:
+                    x_adv = strip_punctuation(x_adv)
+                    
+                if self.progress_bar:
                     visualizer(counter, x_orig, y_orig, x_adv, y_adv, info, tqdm_writer)
                 else:
                     visualizer(counter, x_orig, y_orig, x_adv, y_adv, info, sys.stdout.write)
@@ -188,10 +192,11 @@ class DefaultAttackEval(AttackEval):
             assert isinstance(data, DataInstance)
             clsf_wrapper.set_meta(data.meta)
             res = self.attacker(self.classifier, data.x, data.target)
+            x_no_punctuation = strip_punctuation(data.x)
             if res is None:
-                info = self.__update(data.x, None)
+                info = self.__update(x_no_punctuation, None)
             else:
-                info = self.__update(data.x, res[0])
+                info = self.__update(x_no_punctuation, strip_punctuation(res[0]))
             if not info["Succeed"]:
                 yield (data, None, None, info)
             else:
@@ -221,10 +226,11 @@ class DefaultAttackEval(AttackEval):
             for future in concurrent.futures.as_completed(futures_to_data):
                 data = futures_to_data[future]
                 res = future.result()
+                x_no_punctuation = strip_punctuation(data.x)
                 if res is None:
-                    info = self.__update(data.x, None)
+                    info = self.__update(x_no_punctuation, None)
                 else:
-                    info = self.__update(data.x, res[0])
+                    info = self.__update(x_no_punctuation, strip_punctuation(res[0]))
                 if not info["Succeed"]:
                     yield (data, None, None, info)
                 else:
@@ -282,8 +288,8 @@ class DefaultAttackEval(AttackEval):
         if self.__config["modification_tool"] is None:
             from ..metric import Modification
             self.__config["modification_tool"] = Modification()
-        tokenA = self.__get_tokens(sentA)
-        tokenB = self.__get_tokens(sentB)
+        tokenA = self.__get_tokens(sentA.lower())
+        tokenB = self.__get_tokens(sentB.lower())
         return self.__config["modification_tool"](tokenA, tokenB)
 
     def measure(self, input_, attack_result):
@@ -313,7 +319,14 @@ class DefaultAttackEval(AttackEval):
             info["Grammatical Errors"] = self.__get_mistakes(attack_result)
 
         if self.__config["fluency"]:
-            info["Fluency (ppl)"] = self.__get_fluency(attack_result)
+            try:
+                info["Fluency (ppl)"] = self.__get_fluency(attack_result)
+            except:
+                info["Fluency (ppl)"] = 0
+            try:
+                info["Relative Fluency"] = self.__get_fluency(input_) - info["Fluency (ppl)"]
+            except:
+                info["Relative Fluency"] = 0
 
         if self.__config["semantic"]:
             info["Semantic Similarity"] = self.__get_semantic(input_, attack_result)
@@ -359,6 +372,10 @@ class DefaultAttackEval(AttackEval):
                 self.__result["fluency"] = 0
             self.__result["fluency"] += info["Fluency (ppl)"]
 
+            if "relative_fluency" not in self.__result:
+                self.__result["relative_fluency"] = 0
+            self.__result["relative_fluency"] += info["Relative Fluency"]
+
         if self.__config["semantic"]:
             if "semantic" not in self.__result:
                 self.__result["semantic"] = 0
@@ -395,6 +412,11 @@ class DefaultAttackEval(AttackEval):
                 if "fluency" not in self.__result:
                     self.__result["fluency"] = 0
                 ret["Avg. Fluency (ppl)"] = self.__result["fluency"] / self.__result["succeed"]
+
+                if "relative_fluency" not in self.__result:
+                    self.__result["relative_fluency"] = 0
+                ret["Avg. Relative Fluency"] = self.__result["relative_fluency"] / self.__result["succeed"]
+
             if self.__config["semantic"]:
                 if "semantic" not in self.__result:
                     self.__result["semantic"] = 0
@@ -427,7 +449,7 @@ class DefaultAttackEval(AttackEval):
             results_generator = self.eval_results_multithreaded(dataset, max_workers)
 
         ret = []
-        for data, x_adv, y_adv, info in (tqdm(results_generator, total=total_len) if self.__progress_bar else results_generator):
+        for data, x_adv, y_adv, info in (tqdm(results_generator, total=total_len) if self.progress_bar else results_generator):
             if x_adv is not None:
                 ret.append(DataInstance (
                     x=x_adv,

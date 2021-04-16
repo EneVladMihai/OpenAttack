@@ -8,3 +8,4 @@ from .xlnet_model import XlnetClassifier
 from .roberta_model import RobertaClassifier
 from .dataset import Dataset, DataInstance
 from .nli_wrapper import NLIWrapper
+from .string import strip_punctuation
